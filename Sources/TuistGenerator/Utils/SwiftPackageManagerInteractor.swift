@@ -68,7 +68,7 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
 
         let workspacePath = path.appending(component: workspaceName)
         logger.notice("Resolving package dependencies using xcodebuild")
-        // -list parameter is a workaround to resolve package dependencies for given workspace without specifying scheme
+
         var arguments = ["xcodebuild", "-resolvePackageDependencies"]
 
         // This allows using the system-defined git credentials instead of using Xcode's accounts permissions
@@ -83,6 +83,7 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
             arguments.append(contentsOf: ["-clonedSourcePackagesDirPath", path])
         }
 
+        // -list parameter is a workaround to resolve package dependencies for given workspace without specifying scheme
         arguments.append(contentsOf: ["-workspace", workspacePath.pathString, "-list"])
 
         let events = System.shared.publisher(arguments).mapToString().values

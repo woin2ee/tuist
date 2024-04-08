@@ -2,13 +2,19 @@ import Foundation
 @testable import TuistGenerator
 
 final class MockXcodeProjWriter: XcodeProjWriting {
+    var estimatedWrittingTime: TimeInterval = 1
+    
     var writeProjectCalls: [ProjectDescriptor] = []
     func write(project: ProjectDescriptor) throws {
-        writeProjectCalls.append(project)
+        DispatchQueue.global().asyncAfter(deadline: .now() + estimatedWrittingTime) {
+            self.writeProjectCalls.append(project)
+        }
     }
 
     var writeworkspaceCalls: [WorkspaceDescriptor] = []
     func write(workspace: WorkspaceDescriptor) throws {
-        writeworkspaceCalls.append(workspace)
+        DispatchQueue.global().asyncAfter(deadline: .now() + estimatedWrittingTime) {
+            self.writeworkspaceCalls.append(workspace)
+        }
     }
 }

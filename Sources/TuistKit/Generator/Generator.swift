@@ -19,18 +19,22 @@ public protocol Generating {
 public class Generator: Generating {
     private let graphLinter: GraphLinting = GraphLinter()
     private let environmentLinter: EnvironmentLinting = EnvironmentLinter()
-    private let generator: DescriptorGenerating = DescriptorGenerator()
-    private let writer: XcodeProjWriting = XcodeProjWriter()
-    private let swiftPackageManagerInteractor: TuistGenerator.SwiftPackageManagerInteracting = TuistGenerator
-        .SwiftPackageManagerInteractor()
+    private let generator: DescriptorGenerating
+    private let writer: XcodeProjWriting
+    private let swiftPackageManagerInteractor: TuistGenerator.SwiftPackageManagerInteracting
     private let sideEffectDescriptorExecutor: SideEffectDescriptorExecuting
     private let configLoader: ConfigLoading
     private let manifestGraphLoader: ManifestGraphLoading
     private var lintingIssues: [LintingIssue] = []
+    private let fileHandler: FileHandling
 
     public init(
         manifestLoader: ManifestLoading,
-        manifestGraphLoader: ManifestGraphLoading
+        manifestGraphLoader: ManifestGraphLoading,
+        generator: DescriptorGenerating = DescriptorGenerator(),
+        writer: XcodeProjWriting = XcodeProjWriter(),
+        swiftPackageManagerInteractor: SwiftPackageManagerInteracting = SwiftPackageManagerInteractor(),
+        fileHandler: FileHandling = FileHandler.shared
     ) {
         sideEffectDescriptorExecutor = SideEffectDescriptorExecutor()
         configLoader = ConfigLoader(
@@ -39,6 +43,10 @@ public class Generator: Generating {
             fileHandler: FileHandler.shared
         )
         self.manifestGraphLoader = manifestGraphLoader
+        self.generator = generator
+        self.writer = writer
+        self.swiftPackageManagerInteractor = swiftPackageManagerInteractor
+        self.fileHandler = fileHandler
     }
 
     public func generate(path: AbsolutePath) async throws -> AbsolutePath {
@@ -58,6 +66,12 @@ public class Generator: Generating {
         // Generate
         let workspaceDescriptor = try generator.generateWorkspace(graphTraverser: graphTraverser)
 
+        // packageResolvedWatcher.setUp()
+        let workspacePackageResolvedPath = graphTraverser.path
+            .appending(component: workspaceDescriptor.xcworkspacePath.basename)
+            .appending(try RelativePath(validating: "xcshareddata/swiftpm/Package.resolved"))
+        try fileHandler.touch(workspacePackageResolvedPath)
+        
         // Write
         try writer.write(workspace: workspaceDescriptor)
 
@@ -104,6 +118,12 @@ public class Generator: Generating {
     private func postGenerationActions(graphTraverser: GraphTraversing, workspaceName: String) async throws {
         let config = try configLoader.loadConfig(path: graphTraverser.path)
 
+        let workspacePath = graphTraverser.path.appending(component: workspaceName)
+        try waitWorkspaceWritten(path: workspacePath)
+        
+        // PackageResolvedWatcher
+        // try await packageResolvedWatcher.waitWorkspaceWritten(path: workspacePath)
+        
         try await swiftPackageManagerInteractor.install(
             graphTraverser: graphTraverser,
             workspaceName: workspaceName,
@@ -115,5 +135,27 @@ public class Generator: Generating {
         // Print out warnings, if any
         lintingIssues.printWarningsIfNeeded()
         lintingIssues.removeAll()
+    }
+    
+    private func waitWorkspaceWritten(path workspacePath: AbsolutePath) throws {
+        // The existence of the `Package.resolved` file determines if the `workspace` write is complete.
+        let workspacePackageResolvedPath = workspacePath
+            .appending(try RelativePath(validating: "xcshareddata/swiftpm/Package.resolved"))
+
+        var isTimeout = false
+        DispatchQueue.global().asyncAfter(deadline: .now() + 5) {
+            isTimeout = true
+        }
+        
+        var repeatCount = 0
+        while true {
+            if isTimeout || !fileHandler.exists(workspacePackageResolvedPath) {
+                print(repeatCount)
+                return
+            }
+            repeatCount += 1
+        }
+        
+//        while !isTimeout && fileHandler.exists(workspacePackageResolvedPath) {}
     }
 }
