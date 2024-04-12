@@ -64,6 +64,7 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
                 try fileHandler.delete(workspacePackageResolvedPath)
             }
             try fileHandler.copy(from: rootPackageResolvedPath, to: workspacePackageResolvedPath)
+            return
         }
 
         let workspacePath = path.appending(component: workspaceName)
