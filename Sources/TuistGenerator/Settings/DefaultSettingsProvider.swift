@@ -181,7 +181,7 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         let filter = try createFilter(
             defaultSettings: defaultSettings,
             essentialKeys: DefaultSettingsProvider.essentialTargetSettings,
-            newXcodeKeys: DefaultSettingsProvider.xcodeVersionSpecificSettings
+            xcodeVersionSpecificSettings: DefaultSettingsProvider.xcodeVersionSpecificSettings
         )
         let mergeableSettings = mergeableSettings(for: target, configuration: buildConfiguration)
         var settings: SettingsDictionary = [:]
@@ -214,7 +214,7 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
     private func createFilter(
         defaultSettings: DefaultSettings,
         essentialKeys: Set<String>,
-        newXcodeKeys: [Version: Set<String>] = [:]
+        xcodeVersionSpecificSettings: [Version: Set<String>] = [:]
     ) throws -> (String, SettingValue) -> Bool {
         switch defaultSettings {
         case let .essential(excludedKeys):
@@ -223,7 +223,7 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
             let xcodeVersion = try xcodeController.selectedVersion()
             return { key, _ in
                 // Filter keys that are from higher Xcode version than current (otherwise return true)
-                !newXcodeKeys
+                !xcodeVersionSpecificSettings
                     .filter { $0.key > xcodeVersion }
                     .values.flatMap { $0 }.contains(key) &&
                     !excludedKeys.contains(key)
